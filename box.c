@@ -297,8 +297,6 @@ int main(int argc, char *argv[])
 		char *envs[] = {"USER=foe", "HOME=/foe", "TERM=linux", "PS1=> ",
 			"LD_LIBRARY_PATH=/opt/lib", "EDITOR=vi",
 			"PATH=/foe/bin:/opt/bin:/bin:/sbin:/usr/bin", NULL};
-		if (mount("none", "proc", "proc", 0, NULL) < 0)
-			die("mount proc failed");
 		if (setgroups(1, groups) < 0)
 			die("setgroups failed");
 		for (i = 0; i < 64; i++)
