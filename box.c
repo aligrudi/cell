@@ -90,7 +90,7 @@ int main(int argc, char *argv[])
 	char *rlim[8];
 	int rlim_n = 0;
 	int mntdev = 0, mntsys = 0;
-	int audio = 0, vgafb = 0;
+	int audio = 0, vgafb = 0, kvm = 0, video = 0;
 	char *mktmp = NULL;
 	int uid = 99, gid = 99;
 	unsigned long cln_flags = CLONE_NEWPID | CLONE_NEWNS | CLONE_NEWUTS | CLONE_NEWIPC;
@@ -147,6 +147,8 @@ int main(int argc, char *argv[])
 				audio = 1;
 			if (argv[i][2] == 'f')
 				vgafb = 1;
+			if (argv[i][2] == 'k')
+				kvm = 1;
 			break;
 		case 's':
 			mntsys = 1;
@@ -166,10 +168,12 @@ int main(int argc, char *argv[])
 		printf("  -g gid         process gid (%d)\n", gid);
 		printf("  -m mnt         mount directory src:dst (ro -m, rw -M)\n");
 		printf("  -t             mount /tmp\n");
-		printf("  -s             mount host's /sys\n");
-		printf("  -d             mount host's /dev\n");
+		printf("  -s             mount host's /sys (unsafe)\n");
+		printf("  -d             mount host's /dev (unsafe)\n");
 		printf("  -da            create audio devices\n");
+		printf("  -dv            create video capture devices\n");
 		printf("  -df            create framebuffer devices\n");
+		printf("  -dk            create kvm device\n");
 		printf("  -l Xn          set resource limits (p: nproc, f: nofiles, d: data)\n");
 		printf("  -c msk         mask of capabilities not to drop\n");
 		printf("  -n             make a new network namespace\n");
@@ -235,7 +239,6 @@ int main(int argc, char *argv[])
 	mknod("dev/tty", S_IFCHR | 0666, makedev(5, 0));
 	mkdir("dev/net", 0755);
 	mknod("dev/net/tun", S_IFCHR | 0666, makedev(10, 200));
-	mknod("dev/kvm", S_IFCHR | 0666, makedev(10, 232));
 	/* audio devices */
 	if (audio) {
 		DIR *snd = opendir("/dev/snd");
@@ -255,6 +258,9 @@ int main(int argc, char *argv[])
 			}
 			closedir(snd);
 		}
+	}
+	/* video capture devices */
+	if (video) {
 		dupnod("/dev/video0");
 		dupnod("/dev/video1");
 		dupnod("/dev/media0");
@@ -264,6 +270,9 @@ int main(int argc, char *argv[])
 		dupnod("/dev/fb0");
 		dupnod("/dev/fb1");
 	}
+	/* kvm device */
+	if (kvm)
+		mknod("dev/kvm", S_IFCHR | 0666, makedev(10, 232));
 	/* mount /dev and /sys */
 	if (mntdev)
 		mount("foe-dev", "dev", "devtmpfs", MS_NOSUID | MS_NOEXEC | MS_NOATIME, NULL);
