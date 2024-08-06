@@ -285,12 +285,10 @@ int main(int argc, char *argv[])
 			MS_NOSUID | MS_NODEV | MS_NOATIME, mktmp) < 0)
 		die("mount tmp failed");
 	/* switching the root */
-	mkdir(".root", 0755);
-	if (pivot_root(".", ".root") < 0)
+	if (pivot_root(".", ".") < 0)
 		die("pivot_root failed");
-	if (umount2(".root", MNT_DETACH) < 0)
+	if (umount2(".", MNT_DETACH) < 0)
 		die("umount2 root failed");
-	rmdir(".root");
 	mount("/", "/", NULL, base_flags | MS_REMOUNT, NULL);
 	if ((pid = fork()) < 0)
 		die("fork failed");
@@ -299,6 +297,8 @@ int main(int argc, char *argv[])
 		char *envs[] = {"USER=foe", "HOME=/foe", "TERM=linux", "PS1=> ",
 			"LD_LIBRARY_PATH=/opt/lib", "EDITOR=vi",
 			"PATH=/foe/bin:/opt/bin:/bin:/sbin:/usr/bin", NULL};
+		if (mount("none", "proc", "proc", 0, NULL) < 0)
+			die("mount proc failed");
 		if (setgroups(1, groups) < 0)
 			die("setgroups failed");
 		for (i = 0; i < 64; i++)
