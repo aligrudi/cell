@@ -145,6 +145,8 @@ int main(int argc, char *argv[])
 				mntdev = 1;
 			if (argv[i][2] == 'a')
 				audio = 1;
+			if (argv[i][2] == 'v')
+				video = 1;
 			if (argv[i][2] == 'f')
 				vgafb = 1;
 			if (argv[i][2] == 'k')
