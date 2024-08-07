@@ -215,8 +215,6 @@ int main(int argc, char *argv[])
 		die("mount base failed");
 	if (chdir(base) < 0)
 		die("chdir base failed");
-	if (mount("none", "proc", "proc", 0, NULL) < 0)
-		die("mount proc failed");
 	/* home directory */
 	mount("foe", "foe", NULL, rwmnt_flags, NULL);
 	/* read-only mounts */
