@@ -22,7 +22,7 @@ fi
 mkdir $root
 if test -z "$lower"; then
 	cd $root
-	tar xf $ROOTFS
+	test -f $ROOTFS && tar xf $ROOTFS
 	test -d "$ROOTCP" && cp -r $ROOTCP/* $root/
 	test -d $root/foe && chown -R 99:99 $root/foe
 	# fill /etc
