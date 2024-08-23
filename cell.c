@@ -52,15 +52,15 @@ static void die(char *msg)
 	exit(1);
 }
 
-static int csplit(char **dst, char *s, int c)
+static int csplit(char **dst, int sz, char *s, int c)
 {
 	int n = 0;
 	dst[n++] = s;
-	while ((s = strchr(s, c)) != NULL) {
+	while (n < sz && (s = strchr(s, c)) != NULL) {
 		*s++ = '\0';
 		dst[n++] = s;
 	}
-	while (n < 16)
+	while (n < sz)
 		dst[n++] = NULL;
 	return n;
 }
@@ -116,17 +116,17 @@ int main(int argc, char *argv[])
 		case 'R':
 			base_flags &= ~MS_RDONLY;
 			base = argv[i][2] ? argv[i] + 2 : argv[++i];
-			csplit(base_dirs, base, ':');
+			csplit(base_dirs, 3, base, ':');
 			break;
 		case 'r':
 			base = argv[i][2] ? argv[i] + 2 : argv[++i];
-			csplit(base_dirs, base, ':');
+			csplit(base_dirs, 3, base, ':');
 			break;
 		case 'm':
-			csplit(romnt[romnt_n++], argv[i][2] ? argv[i] + 2 : argv[++i], ':');
+			csplit(romnt[romnt_n++], 2, argv[i][2] ? argv[i] + 2 : argv[++i], ':');
 			break;
 		case 'M':
-			csplit(rwmnt[rwmnt_n++], argv[i][2] ? argv[i] + 2 : argv[++i], ':');
+			csplit(rwmnt[rwmnt_n++], 2, argv[i][2] ? argv[i] + 2 : argv[++i], ':');
 			break;
 		case 'l':
 			rlim[rlim_n++] = argv[i][2] ? argv[i] + 2 : argv[++i];
@@ -135,7 +135,7 @@ int main(int argc, char *argv[])
 			sscanf(argv[i][2] ? argv[i] + 2 : argv[++i], "%lx", &cap);
 			break;
 		case 'e':
-			csplit(veth[veth_n++], argv[i][2] ? argv[i] + 2 : argv[++i], ':');
+			csplit(veth[veth_n++], 3, argv[i][2] ? argv[i] + 2 : argv[++i], ':');
 			break;
 		case 't':
 			mktmp = argv[i][2] ? argv[i] + 2 : "size=256m,nr_inodes=4k,mode=777";
