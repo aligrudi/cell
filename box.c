@@ -79,6 +79,7 @@ int main(int argc, char *argv[])
 {
 	char *init_base[4] = {"/bin/sh"};
 	char *base = NULL;
+	char *base_dirs[4] = {NULL};
 	char **init = init_base;
 	char *romnt[NMNT][4];
 	char *rwmnt[NMNT][4];
@@ -115,9 +116,11 @@ int main(int argc, char *argv[])
 		case 'R':
 			base_flags &= ~MS_RDONLY;
 			base = argv[i][2] ? argv[i] + 2 : argv[++i];
+			csplit(base_dirs, base, ':');
 			break;
 		case 'r':
 			base = argv[i][2] ? argv[i] + 2 : argv[++i];
+			csplit(base_dirs, base, ':');
 			break;
 		case 'm':
 			csplit(romnt[romnt_n++], argv[i][2] ? argv[i] + 2 : argv[++i], ':');
@@ -165,7 +168,7 @@ int main(int argc, char *argv[])
 	if (argc < 2) {
 		printf("Usage: %s [options] init\n\n", argv[0]);
 		printf("Options:\n");
-		printf("  -r root        root directory (ro -r, rw -R)\n");
+		printf("  -r root        root directory (ro -r, rw -R, overlay root:lower:work)\n");
 		printf("  -p pid         process pid (%d)\n", uid);
 		printf("  -g gid         process gid (%d)\n", gid);
 		printf("  -m mnt         mount directory src:dst (ro -m, rw -M)\n");
@@ -211,8 +214,16 @@ int main(int argc, char *argv[])
 	/* make FS private */
 	if (mount("none", "/", NULL, MS_REC | MS_PRIVATE, NULL) < 0)
 		die("mount / failed");
-	if (mount(base, base, NULL, MS_BIND | MS_NOSUID, NULL) < 0)
-		die("mount base failed");
+	if (base_dirs[1] == NULL) {
+		if (mount(base, base, NULL, MS_BIND | MS_NOSUID, NULL) < 0)
+			die("mount base failed");
+	} else {
+		char opt[2048];
+		snprintf(opt, sizeof(opt), "lowerdir=%s,upperdir=%s,workdir=%s",
+			base_dirs[1], base, base_dirs[2]);
+		if (mount("foe-overlay", base, "overlay", MS_NOSUID, opt) < 0)
+			die("mount base overlay failed");
+	}
 	if (chdir(base) < 0)
 		die("chdir base failed");
 	/* home directory */
