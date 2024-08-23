@@ -1,12 +1,15 @@
 #!/bin/sh
 # Make a sandbox directory and generate a script to run cell
 
-ROOT="${ROOT-/root/cell}"
-OPTS="-t -lp100 -lf100 -ld100000000"
+# cell program path
 CELL="/path/to/cell/cell"
-
+# rootfs archive to extract
 ROOTFS="/path/to/rootfs.tar.gz"
+# rootfs files to copy
 ROOTCP="/more/root/files/dir"
+
+# additional options to pass to cell
+OPTS="-t -lp100 -lf100 -ld100000000"
 
 root="$1"
 lower="$2"
