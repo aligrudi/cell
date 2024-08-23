@@ -36,14 +36,14 @@ if test -z "$lower"; then
 else
 	mkdir $root.tmp
 fi
-# cell options
+# generate cell invocation script
 echo '#!/bin/sh' >$root.sh
 if test -z "$lower"; then
 	echo "base=\"$root\"" >>$root.sh
 else
 	echo "base=\"$root:$lower:$root.tmp\"" >>$root.sh
 fi
-echo "root=\"\${ROOT+ -R\$base -c00405f9 -p0 -g0}\"" >>$root.sh
+echo "root=\"\${ROOT+ -R\$base -c00405fb -p0 -g0}\"" >>$root.sh
 echo "exec $CELL -r\$base $OPTS \$root \"\$@\"" >>$root.sh
 chmod 755 $root
 chmod 700 $root.sh
