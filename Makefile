@@ -2,10 +2,10 @@ CC = cc
 CFLAGS = -Wall -O2
 LDFLAGS =
 
-all: box
+all: cell
 .c.o:
 	$(CC) -c $(CFLAGS) $<
-box: box.o netns.o
+cell: cell.o netns.o
 	$(CC) -o $@ $^ $(LDFLAGS)
 clean:
-	rm -f *.o box
+	rm -f *.o cell

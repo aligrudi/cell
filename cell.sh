@@ -1,9 +1,9 @@
 #!/bin/sh
-# Make a sandbox directory and generate a script to run Neatbox
+# Make a sandbox directory and generate a script to run cell
 
-ROOT="${ROOT-/root/box}"
+ROOT="${ROOT-/root/cell}"
 OPTS="-t -lp100 -lf100 -ld100000000"
-BOX="/path/to/neatbox/box"
+CELL="/path/to/cell/cell"
 
 ROOTFS="/path/to/rootfs.tar.gz"
 ROOTCP="/more/root/files/dir"
@@ -14,7 +14,7 @@ if test "$#" != "1"; then
 	exit 1
 fi
 if test -d "$root" -o -f $root; then
-	echo "box.sh: directory $root already exists"
+	echo "cell.sh: directory $root already exists"
 	exit 1
 fi
 # copy rootfs
@@ -28,9 +28,9 @@ echo "foe:x:99:99:foe:/foe:/bin/mksh" >>$root/etc/passwd
 echo "foo::99:" >>$root/etc/group
 echo "foe:x:0::::::" >>$root/etc/shadow
 echo "nameserver 4.2.2.4" >>$root/etc/resolv.conf
-# neatbox options
+# cell options
 echo '#!/bin/sh' >$root.sh
 echo "root=\"\${ROOT+ -R$root -c00405f9 -p0 -g0}\"" >>$root.sh
-echo "exec $BOX -r$root $OPTS \$root \"\$@\"" >>$root.sh
+echo "exec $CELL -r$root $OPTS \$root \"\$@\"" >>$root.sh
 chmod 755 $root
 chmod 700 $root.sh

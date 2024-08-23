@@ -1,5 +1,5 @@
 /*
- * NEATBOX - A SMALL LINUX SANDBOX
+ * CELL - A SMALL LINUX SANDBOX
  *
  * Copyright (C) 2022-2024 Ali Gholami Rudi <ali at rudi dot ir>
  *
@@ -221,7 +221,7 @@ int main(int argc, char *argv[])
 		char opt[2048];
 		snprintf(opt, sizeof(opt), "lowerdir=%s,upperdir=%s,workdir=%s",
 			base_dirs[1], base, base_dirs[2]);
-		if (mount("foe-overlay", base, "overlay", MS_NOSUID, opt) < 0)
+		if (mount("cell-overlay", base, "overlay", MS_NOSUID, opt) < 0)
 			die("mount base overlay failed");
 	}
 	if (chdir(base) < 0)
@@ -235,7 +235,7 @@ int main(int argc, char *argv[])
 	for (i = 0; i < rwmnt_n; i++)
 		mount(rwmnt[i][0], rwmnt[i][1], NULL, rwmnt_flags, NULL);
 	/* mount /dev */
-	if (mount("foe-dev", "dev", "tmpfs", MS_NOSUID | MS_NOEXEC | MS_NOATIME,
+	if (mount("cell-dev", "dev", "tmpfs", MS_NOSUID | MS_NOEXEC | MS_NOATIME,
 			"size=64k,nr_inodes=64,mode=755") < 0)
 		die("mount dev failed");
 	umask(0);
@@ -245,7 +245,7 @@ int main(int argc, char *argv[])
 	mknod("dev/random", S_IFCHR | 0666, makedev(1, 8));
 	mknod("dev/urandom", S_IFCHR | 0666, makedev(1, 9));
 	mkdir("dev/pts", 0755);
-	mount("foe-pty", "dev/pts", "devpts", MS_NOSUID | MS_NOEXEC | MS_NOATIME, NULL);
+	mount("cell-pty", "dev/pts", "devpts", MS_NOSUID | MS_NOEXEC | MS_NOATIME, NULL);
 	mknod("dev/ptmx", S_IFCHR | 0666, makedev(5, 2));
 	mknod("dev/tty", S_IFCHR | 0666, makedev(5, 0));
 	mkdir("dev/net", 0755);
@@ -286,11 +286,11 @@ int main(int argc, char *argv[])
 		mknod("dev/kvm", S_IFCHR | 0666, makedev(10, 232));
 	/* mount /dev and /sys */
 	if (mntdev)
-		mount("foe-dev", "dev", "devtmpfs", MS_NOSUID | MS_NOEXEC | MS_NOATIME, NULL);
+		mount("cell-dev", "dev", "devtmpfs", MS_NOSUID | MS_NOEXEC | MS_NOATIME, NULL);
 	if (mntsys)
-		mount("foe-sys", "sys", "sysfs", MS_NOSUID | MS_NOEXEC | MS_NOATIME, NULL);
+		mount("cell-sys", "sys", "sysfs", MS_NOSUID | MS_NOEXEC | MS_NOATIME, NULL);
 	/* mount /tmp */
-	if (mktmp != NULL && mount("foe-tmp", "tmp", "tmpfs",
+	if (mktmp != NULL && mount("cell-tmp", "tmp", "tmpfs",
 			MS_NOSUID | MS_NODEV | MS_NOATIME, mktmp) < 0)
 		die("mount tmp failed");
 	/* switching the root */
@@ -331,11 +331,11 @@ int main(int argc, char *argv[])
 		execve(init[0], init, envs);
 		exit(1);
 	}
-	printf("foe: %d -> %d\n", getpid(), pid);
+	printf("cell: %d -> %d\n", getpid(), pid);
 	/* wait for the child */
 	while (1) {
 		int cp = wait(NULL);
-		printf("foe: %d exited\n", cp);
+		printf("cell: %d exited\n", cp);
 		if (cp == pid)
 			break;
 	}
