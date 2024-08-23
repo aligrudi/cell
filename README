@@ -1,4 +1,4 @@
-NEATBOX: A SMALL LINUX SANDBOX
-==============================
+CELL: A SMALL LINUX SANDBOX
+===========================
 
-Neatbox is a small sandbox using Linux namespaces.
+Cell is a small sandbox using Linux namespaces.
