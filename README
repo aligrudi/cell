@@ -6,8 +6,8 @@ available options, invoke cell without any arguments.
 
 The cell.sh script makes a sandbox root directory, and generates a
 script to run cell.  To use this script, first modify it to set CELL,
-ROOTFS, and ROOTCP variables.  cell.sh creates a user named foe with
-UID and GID 99, and home directory /foe.
+ROOTFS, and ROOTCP variables.  cell.sh creates a user named foe in
+the sandbox with UID and GID 99, and home directory /foe.
 
   # create a sandbox directory (for an overlay, pass lowerdir as well)
   cell.sh /path/to/sandbox
