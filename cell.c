@@ -142,9 +142,13 @@ int main(int argc, char *argv[])
 	char *rlim[8];
 	char *cgrp[32];
 	int rlim_n = 0;
-	int mntdev = 0, mntsys = 0, mntcgroup = 0;
+	int mntdev = 0;
 	int audio = 0, vgafb = 0, kvm = 0, video = 0;
 	char *mktmp = NULL;
+	char *mkshm = NULL;
+	char *mkdev = "size=64k,nr_inodes=64,mode=755";
+	char *mksys = NULL;
+	char *mkcgroup = NULL;
 	int uid = 99, gid = 99;
 	unsigned long cln_flags = CLONE_NEWPID | CLONE_NEWNS | CLONE_NEWUTS | CLONE_NEWIPC;
 	unsigned long romnt_flags = MS_BIND | MS_RDONLY | MS_NOSUID | MS_NODEV | MS_NOATIME;
@@ -202,7 +206,7 @@ int main(int argc, char *argv[])
 			init_base[0] = argv[i][2] ? argv[i] + 2 : argv[++i];
 			break;
 		case 'd':
-			if (argv[i][2] == '\0')
+			if (argv[i][2] == 'H')
 				mntdev = 1;
 			if (argv[i][2] == 'a')
 				audio = 1;
@@ -212,12 +216,16 @@ int main(int argc, char *argv[])
 				vgafb = 1;
 			if (argv[i][2] == 'k')
 				kvm = 1;
+			if (argv[i][2] == 's')
+				mkshm = argv[i][3] ? argv[i] + 3 : "size=256m,nr_inodes=4k,mode=777";
+			if (argv[i][2] == '=')
+				mkdev = argv[i] + 3;
 			break;
 		case 's':
-			if (argv[i][2] == '\0')
-				mntsys = 1;
+			if (argv[i][2] == 'm')
+				mksys = argv[i] + 3;
 			if (argv[i][2] == 'g')
-				mntcgroup = 1;
+				mkcgroup = argv[i] + 3;
 			break;
 		default:
 			argc = 1;
@@ -233,14 +241,16 @@ int main(int argc, char *argv[])
 		printf("  -u pid         process uid (%d)\n", uid);
 		printf("  -g gid         process gid (%d)\n", gid);
 		printf("  -m mnt         mount directory src:dst (ro -m, rw -M)\n");
-		printf("  -t             mount /tmp\n");
-		printf("  -s             mount host's /sys (unsafe)\n");
-		printf("  -d             mount host's /dev (unsafe)\n");
-		printf("  -sg            mount cgroup2 filesystem in /sys/fs/cgroup\n");
+		printf("  -t[opts]       mount /tmp\n");
+		printf("  -sm[opts]      mount /sys\n");
+		printf("  -sg[opts]      mount cgroup2 filesystem in /sys/fs/cgroup\n");
+		printf("  -dm[opts]      mount /dev (mounted by default)\n");
+		printf("  -dH            mount host's /dev (unsafe)\n");
 		printf("  -da            create audio devices\n");
 		printf("  -dv            create video capture devices\n");
 		printf("  -df            create framebuffer devices\n");
 		printf("  -dk            create kvm device\n");
+		printf("  -ds[opts]      create and mount /dev/shm\n");
 		printf("  -l Xn          set resource limits (p: nproc, f: nofiles, d: data)\n");
 		printf("  -L /grp,key=n  set cgroup v2 limits (i.e., /sys/fs/cgroup/foe,memory.max=1000000)\n");
 		printf("  -c msk         mask of capabilities not to drop\n");
@@ -290,8 +300,8 @@ int main(int argc, char *argv[])
 	for (i = 0; i < rwmnt_n; i++)
 		mount(rwmnt[i][0], rwmnt[i][1], NULL, rwmnt_flags, NULL);
 	/* mount /dev */
-	if (mount("cell-dev", "dev", "tmpfs", MS_NOSUID | MS_NOEXEC | MS_NOATIME,
-			"size=64k,nr_inodes=64,mode=755") < 0)
+	if (mkdev && mount("cell-dev", "dev", "tmpfs",
+			MS_NOSUID | MS_NOEXEC | MS_NOATIME, mkdev) < 0)
 		die("mount dev failed");
 	umask(0);
 	/* base devices */
@@ -342,17 +352,23 @@ int main(int argc, char *argv[])
 	/* mount /dev and /sys */
 	if (mntdev)
 		mount("cell-dev", "dev", "devtmpfs", MS_NOSUID | MS_NOEXEC | MS_NOATIME, NULL);
-	if (mntsys)
-		mount("cell-sys", "sys", "sysfs", MS_NOSUID | MS_NOEXEC | MS_NOATIME, NULL);
-	if (mntcgroup) {
+	if (mksys)
+		mount("cell-sys", "sys", "sysfs", MS_NOSUID | MS_NOEXEC | MS_NOATIME, mksys);
+	if (mkcgroup) {
 		mkdir("sys/fs", 0755);
 		mkdir("sys/fs/cgroup", 0755);
-		mount("cell-cgroup", "sys/fs/cgroup", "cgroup2", MS_NOSUID | MS_NOEXEC | MS_NOATIME, NULL);
+		mount("cell-cgroup", "sys/fs/cgroup", "cgroup2",
+			MS_NOSUID | MS_NOEXEC | MS_NOATIME, mkcgroup);
 	}
 	/* mount /tmp */
-	if (mktmp != NULL && mount("cell-tmp", "tmp", "tmpfs",
+	if (mktmp && mount("cell-tmp", "tmp", "tmpfs",
 			MS_NOSUID | MS_NODEV | MS_NOATIME, mktmp) < 0)
-		die("mount tmp failed");
+		die("mount /tmp failed");
+	if (mkshm)
+		mkdir("dev/shm", 0777);
+	if (mkshm && mount("cell-shm", "dev/shm", "tmpfs",
+			MS_NOSUID | MS_NODEV | MS_NOATIME, mkshm) < 0)
+		die("mount /dev/shm failed");
 	/* set cgroup limits */
 	if (cgrp[0] && cgroup_limit(cgrp[0], getpid(), cgrp + 1) != 0)
 		die("cannot set cgroup limits");
