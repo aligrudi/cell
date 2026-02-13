@@ -142,11 +142,11 @@ int main(int argc, char *argv[])
 	char *rlim[8];
 	char *cgrp[32];
 	int rlim_n = 0;
-	int mntdev = 0;
 	int audio = 0, vgafb = 0, kvm = 0, video = 0;
 	char *mktmp = NULL;
 	char *mkshm = NULL;
 	char *mkdev = "size=64k,nr_inodes=64,mode=755";
+	char *mkdevfs = NULL;
 	char *mksys = NULL;
 	char *mkcgroup = NULL;
 	int uid = 99, gid = 99;
@@ -206,8 +206,10 @@ int main(int argc, char *argv[])
 			init_base[0] = argv[i][2] ? argv[i] + 2 : argv[++i];
 			break;
 		case 'd':
-			if (argv[i][2] == 'H')
-				mntdev = 1;
+			if (argv[i][2] == 'm')
+				mkdev = argv[i] + 3;
+			if (argv[i][2] == 'M')
+				mkdevfs = argv[i] + 3;
 			if (argv[i][2] == 'a')
 				audio = 1;
 			if (argv[i][2] == 'v')
@@ -218,8 +220,6 @@ int main(int argc, char *argv[])
 				kvm = 1;
 			if (argv[i][2] == 's')
 				mkshm = argv[i][3] ? argv[i] + 3 : "size=256m,nr_inodes=4k,mode=777";
-			if (argv[i][2] == '=')
-				mkdev = argv[i] + 3;
 			break;
 		case 's':
 			if (argv[i][2] == 'm')
@@ -244,13 +244,13 @@ int main(int argc, char *argv[])
 		printf("  -t[opts]       mount /tmp\n");
 		printf("  -sm[opts]      mount /sys\n");
 		printf("  -sg[opts]      mount cgroup2 filesystem in /sys/fs/cgroup\n");
-		printf("  -dm[opts]      mount /dev (mounted by default)\n");
-		printf("  -dH            mount host's /dev (unsafe)\n");
+		printf("  -dm[opts]      mount tmpfs on /dev (mounted by default)\n");
+		printf("  -dM[opts]      mount devtmpfs on /dev (unsafe)\n");
+		printf("  -ds[opts]      create and mount /dev/shm\n");
 		printf("  -da            create audio devices\n");
 		printf("  -dv            create video capture devices\n");
 		printf("  -df            create framebuffer devices\n");
 		printf("  -dk            create kvm device\n");
-		printf("  -ds[opts]      create and mount /dev/shm\n");
 		printf("  -l Xn          set resource limits (p: nproc, f: nofiles, d: data)\n");
 		printf("  -L /grp,key=n  set cgroup v2 limits (i.e., /sys/fs/cgroup/foe,memory.max=1000000)\n");
 		printf("  -c msk         mask of capabilities not to drop\n");
@@ -350,8 +350,9 @@ int main(int argc, char *argv[])
 	if (kvm)
 		mknod("dev/kvm", S_IFCHR | 0666, makedev(10, 232));
 	/* mount /dev and /sys */
-	if (mntdev)
-		mount("cell-dev", "dev", "devtmpfs", MS_NOSUID | MS_NOEXEC | MS_NOATIME, NULL);
+	if (mkdevfs)
+		mount("cell-dev", "dev", "devtmpfs",
+			MS_NOSUID | MS_NOEXEC | MS_NOATIME, mkdevfs);
 	if (mksys)
 		mount("cell-sys", "sys", "sysfs", MS_NOSUID | MS_NOEXEC | MS_NOATIME, mksys);
 	if (mkcgroup) {
