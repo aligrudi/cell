@@ -251,7 +251,7 @@ int main(int argc, char *argv[])
 		printf("  -dv            create video capture devices\n");
 		printf("  -df            create framebuffer devices\n");
 		printf("  -dk            create kvm device\n");
-		printf("  -l Xn          set resource limits (p: nproc, f: nofiles, d: data)\n");
+		printf("  -l Xn          set resource limits (p: nproc, f: nofiles, d: data, c: core)\n");
 		printf("  -L /grp,key=n  set cgroup v2 limits (i.e., /sys/fs/cgroup/foe,memory.max=1000000)\n");
 		printf("  -c msk         mask of capabilities not to drop\n");
 		printf("  -n             create a new network namespace\n");
@@ -395,14 +395,16 @@ int main(int argc, char *argv[])
 				prctl(PR_CAPBSET_DROP, i, 0, 0, 0);
 		for (i = 0; i < rlim_n && rlim[i][0]; i++) {
 			struct rlimit rl;
-			rl.rlim_cur = atol(rlim[i] + 1);
-			rl.rlim_max = atol(rlim[i] + 1);
+			rl.rlim_cur = rlim[i][1] ? atol(rlim[i] + 1) : RLIM_INFINITY;
+			rl.rlim_max = rlim[i][1] ? atol(rlim[i] + 1) : RLIM_INFINITY;
 			if (rlim[i][0] == 'p')
 				setrlimit(RLIMIT_NPROC, &rl);
 			if (rlim[i][0] == 'f')
 				setrlimit(RLIMIT_NOFILE, &rl);
 			if (rlim[i][0] == 'd')
 				setrlimit(RLIMIT_DATA, &rl);
+			if (rlim[i][0] == 'c')
+				setrlimit(RLIMIT_CORE, &rl);
 		}
 		if (setresgid(gid, gid, gid) < 0)
 			die("setresgid failed");
