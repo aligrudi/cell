@@ -31,7 +31,7 @@ if test -z "$lower"; then
 	test -d $ROOTCP && cp -r $ROOTCP/* $root/
 	test -d $root/foe && chown -R 99:99 $root/foe
 	echo "foe:x:99:99:foe:/foe:/bin/mksh" >>$root/etc/passwd
-	echo "foo::99:" >>$root/etc/group
+	echo "foe::99:" >>$root/etc/group
 	echo "foe:x:0::::::" >>$root/etc/shadow
 	echo "nameserver 4.2.2.4" >>$root/etc/resolv.conf
 else
