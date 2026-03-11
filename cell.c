@@ -125,6 +125,13 @@ static int cgroup_limit(char *dir, int pid, char **opts)
 	return 0;
 }
 
+static int cell_pid;
+
+static void signalhandle(int n)
+{
+	kill(cell_pid, n);
+}
+
 int main(int argc, char *argv[])
 {
 	char *init_base[4] = {"/bin/sh"};
@@ -156,7 +163,6 @@ int main(int argc, char *argv[])
 	unsigned long cap = 0;
 	unsigned long base_flags = romnt_flags;
 	int nsfd;
-	int pid;
 	int i;
 	for (i = 1; i < argc && argv[i][0] == '-'; i++) {
 		switch (argv[i][1]) {
@@ -246,7 +252,7 @@ int main(int argc, char *argv[])
 		printf("  -sg[opts]      mount cgroup2 filesystem in /sys/fs/cgroup\n");
 		printf("  -dm[opts]      mount tmpfs on /dev (mounted by default)\n");
 		printf("  -dM[opts]      mount devtmpfs on /dev (unsafe)\n");
-		printf("  -ds[opts]      create and mount /dev/shm\n");
+		printf("  -ds[opts]      mount /dev/shm\n");
 		printf("  -da            create audio devices\n");
 		printf("  -dv            create video capture devices\n");
 		printf("  -df            create framebuffer devices\n");
@@ -379,9 +385,9 @@ int main(int argc, char *argv[])
 	if (umount2(".", MNT_DETACH) < 0)
 		die("umount2 root failed");
 	mount("/", "/", NULL, base_flags | MS_REMOUNT, NULL);
-	if ((pid = fork()) < 0)
+	if ((cell_pid = fork()) < 0)
 		die("fork failed");
-	if (pid == 0) {
+	if (cell_pid == 0) {
 		gid_t groups[] = {gid};
 		char *envs[] = {"USER=foe", "HOME=/foe", "TERM=linux", "PS1=> ",
 			"LD_LIBRARY_PATH=/opt/lib", "EDITOR=vi",
@@ -414,9 +420,13 @@ int main(int argc, char *argv[])
 		exit(1);
 	}
 	/* wait for the child */
+	signal(SIGINT, signalhandle);
+	signal(SIGTERM, signalhandle);
+	signal(SIGPIPE, signalhandle);
+	signal(SIGHUP, signalhandle);
 	while (1) {
 		int cp = wait(NULL);
-		if (cp == pid)
+		if (cp == cell_pid)
 			break;
 	}
 	return 0;
