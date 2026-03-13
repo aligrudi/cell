@@ -416,7 +416,7 @@ int main(int argc, char *argv[])
 			die("setresgid failed");
 		if (setresuid(uid, uid, uid) < 0)
 			die("setresuid failed");
-		execve(init[0], init, envs);
+		execvpe(init[0], init, envs);
 		exit(1);
 	}
 	/* wait for the child */
