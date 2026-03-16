@@ -1,7 +1,7 @@
 /*
  * CELL - A SMALL LINUX SANDBOX
  *
- * Copyright (C) 2022-2024 Ali Gholami Rudi <ali at rudi dot ir>
+ * Copyright (C) 2022-2026 Ali Gholami Rudi <ali at rudi dot ir>
  *
  * Permission to use, copy, modify, and/or distribute this software for any
  * purpose with or without fee is hereby granted, provided that the above
@@ -160,7 +160,7 @@ int main(int argc, char *argv[])
 	unsigned long cln_flags = CLONE_NEWPID | CLONE_NEWNS | CLONE_NEWUTS | CLONE_NEWIPC;
 	unsigned long romnt_flags = MS_BIND | MS_RDONLY | MS_NOSUID | MS_NODEV | MS_NOATIME;
 	unsigned long rwmnt_flags = MS_BIND | MS_NOSUID | MS_NODEV | MS_NOATIME;
-	unsigned long cap = 0;
+	unsigned long cap = 0, caparg;
 	unsigned long base_flags = romnt_flags;
 	int nsfd;
 	int i;
@@ -200,7 +200,8 @@ int main(int argc, char *argv[])
 			csplit(cgrp, LEN(cgrp), argv[i][2] ? argv[i] + 2 : argv[++i], ',');
 			break;
 		case 'c':
-			sscanf(argv[i][2] ? argv[i] + 2 : argv[++i], "%lx", &cap);
+			sscanf(argv[i][2] ? argv[i] + 2 : argv[++i], "%lx", &caparg);
+			cap = caparg ? cap | caparg : 0;
 			break;
 		case 'e':
 			csplit(veth[veth_n++], 3, argv[i][2] ? argv[i] + 2 : argv[++i], ':');
@@ -259,7 +260,8 @@ int main(int argc, char *argv[])
 		printf("  -dk            create kvm device\n");
 		printf("  -l Xn          set resource limits (p: nproc, f: nofiles, d: data, c: core)\n");
 		printf("  -L /grp,key=n  set cgroup v2 limits (i.e., /sys/fs/cgroup/foe,memory.max=1000000)\n");
-		printf("  -c msk         mask of capabilities not to drop\n");
+		printf("  -c msk         mask of additional capabilities not to drop\n");
+		printf("  -c 0           drop all capabilites\n");
 		printf("  -n             create a new network namespace\n");
 		printf("  -nnetns        switch to the given named network namespace\n");
 		return 0;
