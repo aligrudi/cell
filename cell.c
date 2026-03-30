@@ -140,12 +140,14 @@ int main(int argc, char *argv[])
 	char **init = init_base;
 	char *romnt[NMNT][4];
 	char *rwmnt[NMNT][4];
+	char *devcp[NMNT];
 	char *veth[NETH][4];
 	char *netns = NULL;
 	unsigned veth_ip[NETH];
 	int romnt_n = 0;
 	int rwmnt_n = 0;
 	int veth_n = 0;
+	int devcp_n = 0;
 	char *rlim[8];
 	char *cgrp[32];
 	int rlim_n = 0;
@@ -194,7 +196,8 @@ int main(int argc, char *argv[])
 			csplit(rwmnt[rwmnt_n++], 2, argv[i][2] ? argv[i] + 2 : argv[++i], ':');
 			break;
 		case 'l':
-			rlim[rlim_n++] = argv[i][2] ? argv[i] + 2 : argv[++i];
+			if (rlim_n < LEN(rlim))
+				rlim[rlim_n++] = argv[i][2] ? argv[i] + 2 : argv[++i];
 			break;
 		case 'L':
 			csplit(cgrp, LEN(cgrp), argv[i][2] ? argv[i] + 2 : argv[++i], ',');
@@ -204,7 +207,8 @@ int main(int argc, char *argv[])
 			cap = caparg ? cap | caparg : 0;
 			break;
 		case 'e':
-			csplit(veth[veth_n++], 3, argv[i][2] ? argv[i] + 2 : argv[++i], ':');
+			if (veth_n < LEN(veth))
+				csplit(veth[veth_n++], 3, argv[i][2] ? argv[i] + 2 : argv[++i], ':');
 			break;
 		case 't':
 			mktmp = argv[i][2] ? argv[i] + 2 : "size=256m,nr_inodes=4k,mode=777";
@@ -217,6 +221,8 @@ int main(int argc, char *argv[])
 				mkdev = argv[i] + 3;
 			if (argv[i][2] == 'M')
 				mkdevfs = argv[i] + 3;
+			if (argv[i][2] == 'd' && devcp_n < LEN(devcp))
+				devcp[devcp_n++] = argv[i] + 3;
 			if (argv[i][2] == 'a')
 				audio = 1;
 			if (argv[i][2] == 'v')
@@ -254,6 +260,7 @@ int main(int argc, char *argv[])
 		printf("  -dm[opts]      mount tmpfs on /dev (mounted by default)\n");
 		printf("  -dM[opts]      mount devtmpfs on /dev (unsafe)\n");
 		printf("  -ds[opts]      mount /dev/shm\n");
+		printf("  -dd/dev/name   create a copy of /dev/name\n");
 		printf("  -da            create audio devices\n");
 		printf("  -dv            create video capture devices\n");
 		printf("  -df            create framebuffer devices\n");
@@ -357,6 +364,10 @@ int main(int argc, char *argv[])
 	/* kvm device */
 	if (kvm)
 		mknod("dev/kvm", S_IFCHR | 0666, makedev(10, 232));
+	/* copy devices */
+	for (i = 0; i < devcp_n; i++)
+		if (devcp[i][0])
+			dupnod(devcp[i]);
 	/* mount /dev and /sys */
 	if (mkdevfs)
 		mount("cell-dev", "dev", "devtmpfs",
