@@ -39,9 +39,19 @@
 
 #define NMNT		128
 #define NDEV		128
+#define NENV		128
 #define NETH		8
 
 #define LEN(a)		(sizeof(a) / sizeof((a)[0]))
+
+static char *cenv[NENV] = {
+	"PATH=/foe/bin:/opt/bin:/bin:/sbin:/usr/bin:/usr/sbin",
+	"TERM=linux",
+	"EDITOR=vi",
+	"USER=foe",
+	"HOME=/foe",
+	"PS1=> ",
+};
 
 int pivot_root(const char *new_root, const char *put_old);
 
@@ -125,6 +135,20 @@ static int cgroup_limit(char *dir, int pid, char **opts)
 	return 0;
 }
 
+static int env_set(char *envs[], int env_n, char *val)
+{
+	char *eq = strchr(val, '=');
+	int i;
+	if (!eq)
+		return 1;
+	for (i = 0; i + 1 < env_n; i++)
+		if (!envs[i] || !strncmp(envs[i], val, eq - val + 1))
+			break;
+	if (i + 1 < env_n)
+		envs[i] = val;
+	return i + 1 >= env_n;
+}
+
 static int cell_pid;
 
 static void signalhandle(int n)
@@ -141,12 +165,9 @@ int main(int argc, char *argv[])
 	char *romnt[NMNT][4];
 	char *rwmnt[NMNT][4];
 	char *devcp[NMNT];
-	char *veth[NETH][4];
 	char *netns = NULL;
-	unsigned veth_ip[NETH];
 	int romnt_n = 0;
 	int rwmnt_n = 0;
-	int veth_n = 0;
 	int devcp_n = 0;
 	char *rlim[8];
 	char *cgrp[32];
@@ -164,7 +185,6 @@ int main(int argc, char *argv[])
 	unsigned long rwmnt_flags = MS_BIND | MS_NOSUID | MS_NODEV | MS_NOATIME;
 	unsigned long cap = 0, caparg;
 	unsigned long base_flags = romnt_flags;
-	int nsfd;
 	int i;
 	for (i = 1; i < argc && argv[i][0] == '-'; i++) {
 		switch (argv[i][1]) {
@@ -207,8 +227,7 @@ int main(int argc, char *argv[])
 			cap = caparg ? cap | caparg : 0;
 			break;
 		case 'e':
-			if (veth_n < LEN(veth))
-				csplit(veth[veth_n++], 3, argv[i][2] ? argv[i] + 2 : argv[++i], ':');
+			env_set(cenv, LEN(cenv), argv[i][2] ? argv[i] + 2 : argv[++i]);
 			break;
 		case 't':
 			mktmp = argv[i][2] ? argv[i] + 2 : "size=256m,nr_inodes=4k,mode=777";
@@ -254,6 +273,7 @@ int main(int argc, char *argv[])
 		printf("  -u pid         process uid (%d)\n", uid);
 		printf("  -g gid         process gid (%d)\n", gid);
 		printf("  -m mnt         mount directory src:dst (ro -m, rw -M)\n");
+		printf("  -e E=V         set an environment variable\n");
 		printf("  -t[opts]       mount /tmp\n");
 		printf("  -sm[opts]      mount /sys\n");
 		printf("  -sg[opts]      mount cgroup2 filesystem in /sys/fs/cgroup\n");
@@ -273,11 +293,6 @@ int main(int argc, char *argv[])
 		printf("  -nnetns        switch to the given named network namespace\n");
 		return 0;
 	}
-	/* keep the network namespace of the parent */
-	for (i = 0; i < veth_n; i++)
-		inet_pton(AF_INET, veth[i][2], &veth_ip);
-	if (veth_n > 0 && (nsfd = open("/proc/self/ns/net", O_RDONLY)) < 0)
-		die("cannot open netns");
 	/* create a new namespace */
 	if (unshare(cln_flags) < 0)
 		die("unshare failed");
@@ -402,9 +417,6 @@ int main(int argc, char *argv[])
 		die("fork failed");
 	if (cell_pid == 0) {
 		gid_t groups[] = {gid};
-		char *envs[] = {"USER=foe", "HOME=/foe", "TERM=linux", "PS1=> ",
-			"LD_LIBRARY_PATH=/opt/lib", "EDITOR=vi",
-			"PATH=/foe/bin:/opt/bin:/bin:/sbin:/usr/bin:/usr/sbin", NULL};
 		if (mount("none", "proc", "proc", 0, NULL) < 0)
 			die("mount proc failed");
 		if (setgroups(1, groups) < 0)
@@ -429,7 +441,7 @@ int main(int argc, char *argv[])
 			die("setresgid failed");
 		if (setresuid(uid, uid, uid) < 0)
 			die("setresuid failed");
-		execvpe(init[0], init, envs);
+		execvpe(init[0], init, cenv);
 		exit(1);
 	}
 	/* wait for the child */
