@@ -240,8 +240,8 @@ int main(int argc, char *argv[])
 				mkdev = argv[i] + 3;
 			if (argv[i][2] == 'M')
 				mkdevfs = argv[i] + 3;
-			if (argv[i][2] == 'd' && devcp_n < LEN(devcp))
-				devcp[devcp_n++] = argv[i] + 3;
+			if (argv[i][2] == '/' && devcp_n < LEN(devcp))
+				devcp[devcp_n++] = argv[i] + 2;
 			if (argv[i][2] == 'a')
 				audio = 1;
 			if (argv[i][2] == 'v')
@@ -280,7 +280,7 @@ int main(int argc, char *argv[])
 		printf("  -dm[opts]      mount tmpfs on /dev (mounted by default)\n");
 		printf("  -dM[opts]      mount devtmpfs on /dev (unsafe)\n");
 		printf("  -ds[opts]      mount /dev/shm\n");
-		printf("  -dd/dev/name   create a copy of /dev/name\n");
+		printf("  -d/dev/name    create a copy of /dev/name\n");
 		printf("  -da            create audio devices\n");
 		printf("  -dv            create video capture devices\n");
 		printf("  -df            create framebuffer devices\n");
