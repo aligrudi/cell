@@ -449,10 +449,7 @@ int main(int argc, char *argv[])
 	signal(SIGTERM, signalhandle);
 	signal(SIGPIPE, signalhandle);
 	signal(SIGHUP, signalhandle);
-	while (1) {
-		int cp = wait(NULL);
-		if (cp == cell_pid)
-			break;
-	}
+	while (wait(NULL) >= 0 || errno != ECHILD)
+		;
 	return 0;
 }
