@@ -174,6 +174,7 @@ int main(int argc, char *argv[])
 	int rlim_n = 0;
 	int audio = 0, vgafb = 0, kvm = 0, video = 0;
 	char *mktmp = NULL;
+	char *mkrun = NULL;
 	char *mkshm = NULL;
 	char *mkdev = "size=64k,nr_inodes=64,mode=755";
 	char *mkdevfs = NULL;
@@ -252,6 +253,8 @@ int main(int argc, char *argv[])
 				kvm = 1;
 			if (argv[i][2] == 's')
 				mkshm = argv[i][3] ? argv[i] + 3 : "size=256m,nr_inodes=4k,mode=777";
+			if (argv[i][2] == 'r')
+				mkrun = argv[i][3] ? argv[i] + 3 : "size=256m,nr_inodes=4k,mode=777";
 			break;
 		case 's':
 			if (argv[i][2] == 'm')
@@ -274,12 +277,13 @@ int main(int argc, char *argv[])
 		printf("  -g gid         process gid (%d)\n", gid);
 		printf("  -m mnt         mount directory src:dst (ro -m, rw -M)\n");
 		printf("  -e E=V         set an environment variable\n");
-		printf("  -t[opts]       mount /tmp\n");
+		printf("  -t[opts]       mount tmpfs on /tmp\n");
 		printf("  -sm[opts]      mount /sys\n");
 		printf("  -sg[opts]      mount cgroup2 filesystem in /sys/fs/cgroup\n");
 		printf("  -dm[opts]      mount tmpfs on /dev (mounted by default)\n");
 		printf("  -dM[opts]      mount devtmpfs on /dev (unsafe)\n");
-		printf("  -ds[opts]      mount /dev/shm\n");
+		printf("  -ds[opts]      mount tmpfs on /dev/shm\n");
+		printf("  -dr[opts]      mount tmpfs on /run\n");
 		printf("  -d/dev/name    create a copy of /dev/name\n");
 		printf("  -da            create audio devices\n");
 		printf("  -dv            create video capture devices\n");
@@ -404,6 +408,9 @@ int main(int argc, char *argv[])
 	if (mkshm && mount("cell-shm", "dev/shm", "tmpfs",
 			MS_NOSUID | MS_NODEV | MS_NOATIME, mkshm) < 0)
 		die("mount /dev/shm failed");
+	if (mkrun && mount("cell-run", "run", "tmpfs",
+			MS_NOSUID | MS_NODEV | MS_NOATIME, mkrun) < 0)
+		die("mount /run failed");
 	/* set cgroup limits */
 	if (cgrp[0] && cgroup_limit(cgrp[0], getpid(), cgrp + 1) != 0)
 		die("cannot set cgroup limits");
