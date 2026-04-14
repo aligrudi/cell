@@ -275,7 +275,7 @@ int main(int argc, char *argv[])
 		printf("  -r root        root directory (ro -r, rw -R, overlay root:lower:work)\n");
 		printf("  -u pid         process uid (%d)\n", uid);
 		printf("  -g gid         process gid (%d)\n", gid);
-		printf("  -m mnt         mount directory src:dst (ro -m, rw -M)\n");
+		printf("  -m src:dst     mount a file/directory, e.g. -m/mnt/foe:foe (ro -m, rw -M)\n");
 		printf("  -e E=V         set an environment variable\n");
 		printf("  -t[opts]       mount tmpfs on /tmp\n");
 		printf("  -sm[opts]      mount /sys\n");
@@ -289,8 +289,8 @@ int main(int argc, char *argv[])
 		printf("  -dv            create video capture devices\n");
 		printf("  -df            create framebuffer devices\n");
 		printf("  -dk            create kvm device\n");
-		printf("  -l Xn          set resource limits (p: nproc, f: nofiles, d: data, c: core)\n");
-		printf("  -L /grp,key=n  set cgroup v2 limits (i.e., /sys/fs/cgroup/foe,memory.max=1000000)\n");
+		printf("  -l Xn          resource limits (p: nproc, f: nofiles, d: data, c: core)\n");
+		printf("  -L /grp,key=n  cgroup v2 limits (i.e., -L/sys/fs/cgroup/foe,memory.max=1000000)\n");
 		printf("  -c msk         mask of additional capabilities not to drop\n");
 		printf("  -c 0           drop all capabilites\n");
 		printf("  -n             create a new network namespace\n");
