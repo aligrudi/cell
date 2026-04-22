@@ -74,12 +74,25 @@ static int csplit(char **dst, int sz, char *s, int c)
 	return n;
 }
 
-static int dupnod(char *src)
+static int dupnod(char *src, int mod)
 {
+	DIR *dir = opendir(src);
 	struct stat st;
+	if (dir) {
+		struct dirent *dp;
+		char path[256];
+		mkdir(src + 1, 0755);
+		while ((dp = readdir(dir)) != NULL) {
+			snprintf(path, sizeof(path), "%s/%s", src, dp->d_name);
+			if (dp->d_name[0] != '.')
+				dupnod(path, mod);
+		}
+		closedir(dir);
+		return 0;
+	}
 	if (stat(src, &st) != 0 || !S_ISCHR(st.st_mode))
 		return 1;
-	if (mknod(src + 1, S_IFCHR | 0666, st.st_rdev))
+	if (mknod(src + 1, S_IFCHR | mod, st.st_rdev))
 		return 1;
 	return 0;
 }
@@ -351,34 +364,24 @@ int main(int argc, char *argv[])
 	mknod("dev/net/tun", S_IFCHR | 0666, makedev(10, 200));
 	/* audio devices */
 	if (audio) {
-		DIR *snd = opendir("/dev/snd");
-		mkdir("dev/snd", 0755);
-		dupnod("/dev/mixer");
-		dupnod("/dev/mixer1");
-		dupnod("/dev/mixer2");
-		dupnod("/dev/dsp");
-		dupnod("/dev/dsp1");
-		dupnod("/dev/dsp2");
-		if (snd != NULL) {
-			struct dirent *dp;
-			char path[256];
-			while ((dp = readdir(snd)) != NULL) {
-				snprintf(path, sizeof(path), "/dev/snd/%s", dp->d_name);
-				dupnod(path);
-			}
-			closedir(snd);
-		}
+		dupnod("/dev/mixer", 0666);
+		dupnod("/dev/mixer1", 0666);
+		dupnod("/dev/mixer2", 0666);
+		dupnod("/dev/dsp", 0666);
+		dupnod("/dev/dsp1", 0666);
+		dupnod("/dev/dsp2", 0666);
+		dupnod("/dev/snd", 0666);
 	}
 	/* video capture devices */
 	if (video) {
-		dupnod("/dev/video0");
-		dupnod("/dev/video1");
-		dupnod("/dev/media0");
+		dupnod("/dev/video0", 0666);
+		dupnod("/dev/video1", 0666);
+		dupnod("/dev/media0", 0666);
 	}
 	/* framebuffer devices */
 	if (vgafb) {
-		dupnod("/dev/fb0");
-		dupnod("/dev/fb1");
+		dupnod("/dev/fb0", 0666);
+		dupnod("/dev/fb1", 0666);
 	}
 	/* kvm device */
 	if (kvm)
@@ -386,7 +389,7 @@ int main(int argc, char *argv[])
 	/* copy devices */
 	for (i = 0; i < devcp_n; i++)
 		if (devcp[i][0])
-			dupnod(devcp[i]);
+			dupnod(devcp[i], 0666);
 	/* mount /dev and /sys */
 	if (mkdevfs)
 		mount("cell-dev", "dev", "devtmpfs",
