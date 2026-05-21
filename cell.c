@@ -194,6 +194,7 @@ int main(int argc, char *argv[])
 	char *mksys = NULL;
 	char *mkcgroup = NULL;
 	int uid = 99, gid = 99;
+	int child_st;
 	unsigned long cln_flags = CLONE_NEWPID | CLONE_NEWNS | CLONE_NEWUTS | CLONE_NEWIPC;
 	unsigned long romnt_flags = MS_BIND | MS_RDONLY | MS_NOSUID | MS_NODEV | MS_NOATIME;
 	unsigned long rwmnt_flags = MS_BIND | MS_NOSUID | MS_NODEV | MS_NOATIME;
@@ -459,7 +460,7 @@ int main(int argc, char *argv[])
 	signal(SIGTERM, signalhandle);
 	signal(SIGPIPE, signalhandle);
 	signal(SIGHUP, signalhandle);
-	while (wait(NULL) >= 0 || errno != ECHILD)
+	while (wait(&child_st) != cell_pid)
 		;
-	return 0;
+	return WEXITSTATUS(child_st);
 }
