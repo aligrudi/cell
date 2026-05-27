@@ -25,6 +25,7 @@
 #include <libgen.h>
 #include <signal.h>
 #include <sched.h>
+#include <stdarg.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -55,9 +56,14 @@ static char *cenv[NENV] = {
 
 int pivot_root(const char *new_root, const char *put_old);
 
-static void die(char *msg)
+static void die(char *fmt, ...)
 {
-	perror(msg);
+	fprintf(stderr, "cell: ");
+	va_list ap;
+	va_start(ap, fmt);
+	vfprintf(stderr, fmt, ap);
+	va_end(ap);
+	fprintf(stderr, " (%s)\n", strerror(errno));
 	exit(1);
 }
 
@@ -175,12 +181,11 @@ int main(int argc, char *argv[])
 	char *base = NULL;
 	char *base_dirs[4] = {NULL};
 	char **init = init_base;
-	char *romnt[NMNT][4];
-	char *rwmnt[NMNT][4];
+	char *mnt[NMNT][4];
+	int mnt_rw[NMNT];
 	char *devcp[NMNT];
 	char *netns = NULL;
-	int romnt_n = 0;
-	int rwmnt_n = 0;
+	int mnt_n = 0;
 	int devcp_n = 0;
 	char *rlim[8];
 	char *cgrp[32];
@@ -225,10 +230,12 @@ int main(int argc, char *argv[])
 			csplit(base_dirs, 3, base, ':');
 			break;
 		case 'm':
-			csplit(romnt[romnt_n++], 2, argv[i][2] ? argv[i] + 2 : argv[++i], ':');
-			break;
 		case 'M':
-			csplit(rwmnt[rwmnt_n++], 2, argv[i][2] ? argv[i] + 2 : argv[++i], ':');
+			if (mnt_n == NMNT)
+				die("cell: reached NMNT");
+			mnt_rw[mnt_n] = argv[i][0] == 'M';
+			csplit(mnt[mnt_n], 2, argv[i][2] ? argv[i] + 2 : argv[++i], ':');
+			mnt_n++;
 			break;
 		case 'l':
 			if (rlim_n < LEN(rlim))
@@ -341,12 +348,12 @@ int main(int argc, char *argv[])
 		die("chdir base failed");
 	/* home directory */
 	mount("foe", "foe", NULL, rwmnt_flags, NULL);
-	/* read-only mounts */
-	for (i = 0; i < romnt_n; i++)
-		mount(romnt[i][0], romnt[i][1], NULL, romnt_flags, NULL);
-	/* read-write mounts */
-	for (i = 0; i < rwmnt_n; i++)
-		mount(rwmnt[i][0], rwmnt[i][1], NULL, rwmnt_flags, NULL);
+	/* ro/rw bind mounts */
+	for (i = 0; i < mnt_n; i++) {
+		int flags = mnt_rw[i] ? rwmnt_flags : romnt_flags;
+		if (mount(mnt[i][0], mnt[i][1], NULL, flags, NULL) < 0)
+			die("mount failed for %s:%s", mnt[i][0], mnt[i][1]);
+	}
 	/* mount /dev */
 	if (mkdev && mount("cell-dev", "dev", "tmpfs",
 			MS_NOSUID | MS_NOEXEC | MS_NOATIME, mkdev) < 0)
