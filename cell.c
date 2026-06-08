@@ -198,6 +198,7 @@ int main(int argc, char *argv[])
 	char *mkdevfs = NULL;
 	char *mksys = NULL;
 	char *mkcgroup = NULL;
+	char *hostname = "localhost";
 	int uid = 99, gid = 99;
 	int child_st;
 	unsigned long cln_flags = CLONE_NEWPID | CLONE_NEWNS | CLONE_NEWUTS | CLONE_NEWIPC;
@@ -283,6 +284,9 @@ int main(int argc, char *argv[])
 			if (argv[i][2] == 'g')
 				mkcgroup = argv[i] + 3;
 			break;
+		case 'H':
+			hostname = argv[i][2] ? argv[i] + 2 : argv[++i];
+			break;
 		default:
 			argc = 1;
 			break;
@@ -310,8 +314,9 @@ int main(int argc, char *argv[])
 		printf("  -dv            create video capture devices\n");
 		printf("  -df            create framebuffer devices\n");
 		printf("  -dk            create kvm device\n");
-		printf("  -l Xn          resource limits (p: nproc, f: nofiles, d: data, c: core)\n");
+		printf("  -l Xn          resource limits (p: nproc, f: nofiles, d: data, c: core; e.g. -lp10)\n");
 		printf("  -L /grp,key=n  cgroup v2 limits (i.e., -L/sys/fs/cgroup/foe,memory.max=1000000)\n");
+		printf("  -H hostname    set hostname (\"\" to use host's)\n");
 		printf("  -c msk         mask of additional capabilities not to drop\n");
 		printf("  -c 0           drop all capabilites\n");
 		printf("  -n             create a new network namespace\n");
@@ -455,6 +460,8 @@ int main(int argc, char *argv[])
 			if (rlim[i][0] == 'c')
 				setrlimit(RLIMIT_CORE, &rl);
 		}
+		if (hostname[0])
+			sethostname(hostname, strlen(hostname));
 		if (setresgid(gid, gid, gid) < 0)
 			die("setresgid failed");
 		if (setresuid(uid, uid, uid) < 0)
