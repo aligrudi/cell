@@ -199,6 +199,7 @@ int main(int argc, char *argv[])
 	char *mksys = NULL;
 	char *mkcgroup = NULL;
 	char *hostname = "localhost";
+	char *cwd = NULL;
 	int uid = 99, gid = 99;
 	int child_st;
 	unsigned long cln_flags = CLONE_NEWPID | CLONE_NEWNS | CLONE_NEWUTS | CLONE_NEWIPC;
@@ -284,6 +285,9 @@ int main(int argc, char *argv[])
 			if (argv[i][2] == 'g')
 				mkcgroup = argv[i] + 3;
 			break;
+		case 'w':
+			cwd = argv[i][2] ? argv[i] + 2 : argv[++i];
+			break;
 		case 'H':
 			hostname = argv[i][2] ? argv[i] + 2 : argv[++i];
 			break;
@@ -317,6 +321,7 @@ int main(int argc, char *argv[])
 		printf("  -l Xn          resource limits (p: nproc, f: nofiles, d: data, c: core; e.g. -lp10)\n");
 		printf("  -L /grp,key=n  cgroup v2 limits (i.e., -L/sys/fs/cgroup/foe,memory.max=1000000)\n");
 		printf("  -H hostname    set hostname (\"\" to use host's)\n");
+		printf("  -w path        set process working directory\n");
 		printf("  -c msk         mask of additional capabilities not to drop\n");
 		printf("  -c 0           drop all capabilites\n");
 		printf("  -n             create a new network namespace\n");
@@ -466,6 +471,8 @@ int main(int argc, char *argv[])
 			die("setresgid failed");
 		if (setresuid(uid, uid, uid) < 0)
 			die("setresuid failed");
+		if (cwd && chdir(cwd))
+			die("chdir failed");
 		execvpe(init[0], init, cenv);
 		exit(1);
 	}
