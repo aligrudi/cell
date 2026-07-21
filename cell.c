@@ -172,7 +172,8 @@ static int cell_pid;
 
 static void signalhandle(int n)
 {
-	kill(cell_pid, n);
+	if (cell_pid > 0)
+		kill(cell_pid, n);
 }
 
 int main(int argc, char *argv[])
@@ -372,6 +373,7 @@ int main(int argc, char *argv[])
 	/* base devices */
 	mknod("dev/null", S_IFCHR | 0666, makedev(1, 3));
 	mknod("dev/zero", S_IFCHR | 0666, makedev(1, 5));
+	mknod("dev/full", S_IFCHR | 0666, makedev(1, 7));
 	mknod("dev/random", S_IFCHR | 0666, makedev(1, 8));
 	mknod("dev/urandom", S_IFCHR | 0666, makedev(1, 9));
 	mkdir("dev/pts", 0755);
@@ -476,7 +478,7 @@ int main(int argc, char *argv[])
 		execvpe(init[0], init, cenv);
 		exit(1);
 	}
-	/* wait for the child */
+	/* redirect signals to the child */
 	signal(SIGINT, signalhandle);
 	signal(SIGTERM, signalhandle);
 	signal(SIGPIPE, signalhandle);
