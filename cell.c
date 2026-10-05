@@ -507,6 +507,7 @@ int main(int argc, char *argv[])
 	if ((cell_pid = fork()) < 0)
 		die("fork failed");
 	if (cell_pid == 0) {
+		char *cell_path = NULL;
 		gid_t groups[] = {gid};
 		if (mount("none", "proc", "proc", 0, NULL) < 0)
 			die("mount proc failed");
@@ -536,6 +537,12 @@ int main(int argc, char *argv[])
 			die("setresuid failed");
 		if (cwd && chdir(cwd))
 			die("chdir failed");
+		for (i = 0; cenv[i]; i++) {
+			if (!strncmp(cenv[i], "PATH=", 5))
+				cell_path = cenv[i] + 5;
+		}
+		if (cell_path)
+			setenv("PATH", cell_path, 1);
 		execvpe(init[0], init, cenv);
 		exit(1);
 	}
