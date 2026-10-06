@@ -475,6 +475,15 @@ int main(int argc, char *argv[])
 			die("setresuid failed");
 		if (cwd && chdir(cwd))
 			die("chdir failed");
+		char *cell_path = NULL;
+		for (i = 0; cenv[i]; i++) {
+			if (!strncmp(cenv[i], "PATH=", 5)) {
+				cell_path = cenv[i] + 5;
+				break;
+			}
+		}
+		if (cell_path)
+			setenv("PATH", cell_path, 1);
 		execvpe(init[0], init, cenv);
 		exit(1);
 	}
