@@ -41,7 +41,6 @@
 #define NMNT		128
 #define NDEV		128
 #define NENV		128
-#define NETH		8
 
 #define LEN(a)		(sizeof(a) / sizeof((a)[0]))
 
@@ -55,6 +54,12 @@ static char *cenv[NENV] = {
 };
 
 int pivot_root(const char *new_root, const char *put_old);
+
+static void die_nosys(char *msg)
+{
+	fprintf(stderr, "cell: %s\n", msg);
+	exit(1);
+}
 
 static void die(char *fmt, ...)
 {
@@ -168,6 +173,27 @@ static int env_set(char *envs[], int env_n, char *val)
 	return i + 1 >= env_n;
 }
 
+static int ns_flag[256] = {
+	['c'] = CLONE_NEWCGROUP,
+	['i'] = CLONE_NEWIPC,
+	['m'] = CLONE_NEWNS,
+	['n'] = CLONE_NEWNET,
+	['p'] = CLONE_NEWPID,
+	['t'] = CLONE_NEWTIME,
+	['U'] = CLONE_NEWUSER,
+	['u'] = CLONE_NEWUTS,
+};
+static char *ns_name[256] = {
+	['c'] = "cgroup",
+	['i'] = "ipc",
+	['m'] = "mnt",
+	['n'] = "net",
+	['p'] = "pid",
+	['t'] = "time",
+	['U'] = "user",
+	['u'] = "uts",
+};
+
 static int cell_pid;
 
 static void signalhandle(int n)
@@ -203,7 +229,10 @@ int main(int argc, char *argv[])
 	char *cwd = NULL;
 	int uid = 99, gid = 99;
 	int child_st;
-	unsigned long cln_flags = CLONE_NEWPID | CLONE_NEWNS | CLONE_NEWUTS | CLONE_NEWIPC;
+	char *enter[16];
+	int enter_n = 0;
+	char *cln_list = "cimptu";
+	unsigned long cln_flags = 0;
 	unsigned long romnt_flags = MS_BIND | MS_RDONLY | MS_NOSUID | MS_NODEV | MS_NOATIME;
 	unsigned long rwmnt_flags = MS_BIND | MS_NOSUID | MS_NODEV | MS_NOATIME;
 	unsigned long cap = 0, caparg;
@@ -212,10 +241,7 @@ int main(int argc, char *argv[])
 	for (i = 1; i < argc && argv[i][0] == '-'; i++) {
 		switch (argv[i][1]) {
 		case 'n':
-			if (argv[i][2])
-				netns = argv[i] + 2;
-			else
-				cln_flags |= CLONE_NEWNET;
+			netns = argv[i] + 2;
 			break;
 		case 'u':
 			uid = atoi(argv[i][2] ? argv[i] + 2 : argv[++i]);
@@ -235,14 +261,15 @@ int main(int argc, char *argv[])
 		case 'm':
 		case 'M':
 			if (mnt_n == NMNT)
-				die("cell: reached NMNT");
+				die_nosys("reached -m limit");
 			mnt_rw[mnt_n] = argv[i][0] == 'M';
 			csplit(mnt[mnt_n], 2, argv[i][2] ? argv[i] + 2 : argv[++i], ':');
 			mnt_n++;
 			break;
 		case 'l':
-			if (rlim_n < LEN(rlim))
-				rlim[rlim_n++] = argv[i][2] ? argv[i] + 2 : argv[++i];
+			if (rlim_n == LEN(rlim))
+				die_nosys("reached -l limit");
+			rlim[rlim_n++] = argv[i][2] ? argv[i] + 2 : argv[++i];
 			break;
 		case 'L':
 			csplit(cgrp, LEN(cgrp), argv[i][2] ? argv[i] + 2 : argv[++i], ',');
@@ -292,6 +319,14 @@ int main(int argc, char *argv[])
 		case 'H':
 			hostname = argv[i][2] ? argv[i] + 2 : argv[++i];
 			break;
+		case 'x':
+			cln_list = argv[i][2] ? argv[i] + 2 : argv[++i];
+			break;
+		case 'j':
+			if (enter_n == LEN(enter))
+				die_nosys("reached -j limit");
+			enter[enter_n++] = argv[i][2] ? argv[i] + 2 : argv[++i];
+			break;
 		default:
 			argc = 1;
 			break;
@@ -327,21 +362,47 @@ int main(int argc, char *argv[])
 		printf("  -c 0           drop all capabilites\n");
 		printf("  -n             create a new network namespace\n");
 		printf("  -nnetns        switch to the given named network namespace\n");
+		printf("  -x list        namespaces to create (default: cimptu)\n");
+		printf("  -j Xn          enter another process' namespace (X: NS type, n: process PID)\n");
+		printf("\n");
+		printf("Namespace types: c cgroup, i ipc, n net, m mnt, p pid, t time, U user, u uts\n");
 		return 0;
 	}
-	/* create a new namespace */
-	if (unshare(cln_flags) < 0)
-		die("unshare failed");
+	/* unshare namespace flags */
+	for (i = 0; cln_list[i]; i++)
+		cln_flags |= ns_flag[(unsigned char) cln_list[i]];
+	/* enter other namespaces */
+	for (i = 0; i < enter_n; i++) {
+		if (ns_name[(unsigned char) enter[i][0]]) {
+			char path[256];
+			int nsfd;
+			snprintf(path, sizeof(path), "/proc/%s/ns/%s",
+				enter[i] + 1, ns_name[(unsigned char) enter[i][0]]);
+			nsfd = open(path, O_RDONLY);
+			if (nsfd < 0 || setns(nsfd, ns_flag[(unsigned char) enter[i][0]]) < 0)
+				die("-j%s failed", enter[i]);
+			close(nsfd);
+			cln_flags &= ~ns_flag[(unsigned char) enter[i][0]];
+		}
+	}
 	/* change the network namespace */
 	if (netns) {
 		char path[256];
 		int nsfd;
-		snprintf(path, sizeof(path), "/var/run/netns/%s", netns);
-		nsfd = open(path, O_RDONLY);
-		if (nsfd < 0 || setns(nsfd, CLONE_NEWNET) < 0)
-			die("changing netns failed");
-		close(nsfd);
+		if (netns[0]) {
+			snprintf(path, sizeof(path), "/var/run/netns/%s", netns);
+			nsfd = open(path, O_RDONLY);
+			if (nsfd < 0 || setns(nsfd, CLONE_NEWNET) < 0)
+				die("changing netns failed");
+			close(nsfd);
+			cln_flags &= ~CLONE_NEWNET;
+		} else {
+			cln_flags |= CLONE_NEWNET;
+		}
 	}
+	/* create new namespaces */
+	if (unshare(cln_flags) < 0)
+		die("unshare failed");
 	/* make FS private */
 	if (mount("none", "/", NULL, MS_REC | MS_PRIVATE, NULL) < 0)
 		die("mount / failed");
