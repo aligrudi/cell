@@ -1,5 +1,5 @@
 CC = cc
-CFLAGS = -Wall -O2
+CFLAGS = -Wall -O2 -Wformat-truncation=0
 LDFLAGS =
 
 all: cell
