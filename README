@@ -4,6 +4,9 @@ CELL: A SMALL LINUX SANDBOX
 Cell is a small sandbox using Linux namespaces.  For a list of
 available options, invoke cell without any arguments.
 
+HELPER SCRIPTS
+==============
+
 The cell.sh script makes a sandbox root directory, and generates a
 script to run cell.  To use this script, first modify it to set CELL,
 ROOTFS, and ROOTCP variables.  cell.sh creates a user named foe in
@@ -19,3 +22,35 @@ the sandbox with UID and GID 99, and home directory /foe.
   ROOT=1 /path/to/sandbox.sh
 
 You can edit /path/to/sandbox.sh to modify cell options.
+
+EXAMPLE OPTIONS
+===============
+
+Some examples for using cell's options:
+
+-r /data/rootfs
+  Mount's sandbox root in read-only mode.
+-R /data/rootfs
+  Mounts sandbox root is read-write mode.
+-R /data/rootfs.updates:/data/rootfs:/data/rootfs.tmp
+  Mounts an overlay filesystem for sandbox root.
+-m /data/bin:bin
+  Mounts hosts' /data/bin on sandbox's /bin in read-only mode.
+-M /data/logs:var/log
+  Mounts hosts' /data/logs on sandbox's /var/log in read-write mode.
+-M home:home
+  Changes sandbox's /home directly to be read-write (if root is read-only).
+-d/dev/input
+  Creates all devices in host's /dev/input in sandbox's /dev/input.
+-tsize=512m,nr_inodes=16k,mode=777
+  Mounts tmpfs on sandbox's /tmp with the given options.
+-sp
+  Mounts sandbox's /proc with no options (omits subset=pid; necessary for ALSA).
+-lp10 -lc1000
+  Limits process count to 10, and coredump size to 1000 blocks.
+-L"/sys/fs/cgroups/foe,memory.max=1024000,pids.max=50,cpu.max=60000 100000"
+  Uses cgroups2 to limit sandbox's memory usage, process count, and cpu usage.
+-i cell.243.sandbox -imksh
+  Specify a sandbox ID (ignored by cell), and the default init program (the second -i).
+-ji$(pgrep -f -i cell.243.sandbox)
+  Enter the IPC namespace of another sandbox.
