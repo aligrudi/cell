@@ -26,7 +26,9 @@ You can edit /path/to/sandbox.sh to modify cell options.
 EXAMPLE OPTIONS
 ===============
 
-Some examples for using cell's options:
+The following examples demonstrate how to use some of cell's
+options.  For the full list of options, invoke cell without
+arguments.
 
 -r /data/rootfs
   Mount's sandbox root in read-only mode.
@@ -52,5 +54,5 @@ Some examples for using cell's options:
   Uses cgroups2 to limit sandbox's memory usage, process count, and cpu usage.
 -i cell.243.sandbox -imksh
   Specify a sandbox ID (ignored by cell), and the default init program (the second -i).
--ji$(pgrep -f -i cell.243.sandbox)
+-ji$(pgrep -f cell.243.sandbox)
   Enter the IPC namespace of another sandbox.
