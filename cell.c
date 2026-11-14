@@ -221,6 +221,7 @@ int main(int argc, char *argv[])
 	char *mktmp = NULL;
 	char *mkrun = NULL;
 	char *mkshm = NULL;
+	char *mkproc = "subset=pid";
 	char *mkdev = "size=64k,nr_inodes=64,mode=755";
 	char *mkdevfs = NULL;
 	char *mksys = NULL;
@@ -315,10 +316,12 @@ int main(int argc, char *argv[])
 				mkrun = argv[i][3] ? argv[i] + 3 : "size=256m,nr_inodes=4k,mode=777";
 			break;
 		case 's':
-			if (argv[i][2] == 'm')
-				mksys = argv[i] + 3;
 			if (argv[i][2] == 'g')
 				mkcgroup = argv[i] + 3;
+			if (argv[i][2] == 'p')
+				mkproc = argv[i] + 3;
+			if (argv[i][2] == 'm')
+				mksys = argv[i] + 3;
 			break;
 		case 'w':
 			cwd = argv[i][2] ? argv[i] + 2 : argv[++i];
@@ -354,6 +357,7 @@ int main(int argc, char *argv[])
 		printf("  -t[opts]       mount tmpfs on /tmp\n");
 		printf("  -sm[opts]      mount /sys\n");
 		printf("  -sg[opts]      mount cgroup2 filesystem in /sys/fs/cgroup\n");
+		printf("  -sp[opts]      mount /proc (mounted by default, %s)\n", mkproc);
 		printf("  -dm[opts]      mount tmpfs on /dev (mounted by default)\n");
 		printf("  -dM[opts]      mount devtmpfs on /dev (unsafe)\n");
 		printf("  -ds[opts]      mount tmpfs on /dev/shm\n");
@@ -543,7 +547,7 @@ int main(int argc, char *argv[])
 	if (cell_pid == 0) {
 		char *cell_path = NULL;
 		gid_t groups[] = {gid};
-		if (mount("none", "proc", "proc", 0, "subset=pid") < 0)
+		if (mount("none", "proc", "proc", 0, mkproc) < 0)
 			die("mount proc failed");
 		if (setgroups(1, groups) < 0 && !umap)
 			die("setgroups failed");
