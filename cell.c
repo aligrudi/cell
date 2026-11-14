@@ -196,7 +196,7 @@ static char *ns_name[256] = {
 
 static int cell_pid;
 
-static void signalhandle(int n)
+static void sigredirect(int n)
 {
 	if (cell_pid > 0)
 		kill(cell_pid, n);
@@ -353,7 +353,7 @@ int main(int argc, char *argv[])
 		printf("  -g gid         process gid (%d)\n", gid);
 		printf("  -U a:b:c       user namespace UID mapping (a: namespace UID, b: UID, c: count)\n");
 		printf("  -G a:b:c       user namespace GID mapping (a: namespace GID, b: GID, c: count)\n");
-		printf("  -i str         default init (can be used to specify a sandbox ID)\n");
+		printf("  -i str         set the default init (can also be used to specify a sandbox ID)\n");
 		printf("  -e E=V         set an environment variable\n");
 		printf("  -t[opts]       mount tmpfs on /tmp\n");
 		printf("  -sm[opts]      mount /sys\n");
@@ -586,10 +586,10 @@ int main(int argc, char *argv[])
 		exit(1);
 	}
 	/* redirect signals to the child */
-	signal(SIGINT, signalhandle);
-	signal(SIGTERM, signalhandle);
-	signal(SIGPIPE, signalhandle);
-	signal(SIGHUP, signalhandle);
+	signal(SIGINT, sigredirect);
+	signal(SIGTERM, sigredirect);
+	signal(SIGPIPE, sigredirect);
+	signal(SIGHUP, sigredirect);
 	while (wait(&child_st) != cell_pid)
 		;
 	return WEXITSTATUS(child_st);
