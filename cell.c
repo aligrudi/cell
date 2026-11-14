@@ -112,12 +112,13 @@ static int writefile(char *dir, char *ent, char *dat)
 {
 	char path[256];
 	int fd;
+	long res;
 	snprintf(path, sizeof(path), "%s/%s", dir, ent);
 	if ((fd = open(path, O_WRONLY)) < 0)
 		return 1;
-	write(fd, dat, strlen(dat));
+	res = write(fd, dat, strlen(dat));
 	close(fd);
-	return 0;
+	return res != strlen(dat);
 }
 
 static int cgroup_limit(char *dir, int pid, char **opts)
@@ -140,19 +141,18 @@ static int cgroup_limit(char *dir, int pid, char **opts)
 		}
 	}
 	snprintf(grp, sizeof(grp), "%s", dir);
-	writefile(dirname(grp), "cgroup.subtree_control", ctl);
-	snprintf(dat, sizeof(dat), "%d\n", pid);
+	if (writefile(dirname(grp), "cgroup.subtree_control", ctl))
+		return 1;
+	snprintf(dat, sizeof(dat), "%d", pid);
 	if (mkdir(dir, 0755) < 0 && errno != EEXIST)
 		return 1;
-	if (writefile(dir, "cgroup.procs", dat) != 0)
-		return 1;
-	if (writefile(dir, "cgroup.subtree_control", ctl) != 0)
+	if (writefile(dir, "cgroup.procs", dat))
 		return 1;
 	for (i = 0; opts[i] != NULL; i++) {
 		snprintf(key, sizeof(key), "%s", opts[i]);
-		if ((val = strchr(key, '=')) != NULL) {
+		if ((val = strchr(key, '='))) {
 			val[0] = '\0';
-			if (writefile(dir, key, val + 1) != 0)
+			if (writefile(dir, key, val + 1))
 				return 1;
 		}
 	}
@@ -228,6 +228,7 @@ int main(int argc, char *argv[])
 	char *hostname = "localhost";
 	char *cwd = NULL;
 	int uid = 99, gid = 99;
+	char *umap = NULL, *gmap = NULL;
 	int child_st;
 	char *enter[16];
 	int enter_n = 0;
@@ -248,6 +249,12 @@ int main(int argc, char *argv[])
 			break;
 		case 'g':
 			gid = atoi(argv[i][2] ? argv[i] + 2 : argv[++i]);
+			break;
+		case 'U':
+			umap = argv[i][2] ? argv[i] + 2 : argv[++i];
+			break;
+		case 'G':
+			gmap = argv[i][2] ? argv[i] + 2 : argv[++i];
 			break;
 		case 'R':
 			base_flags &= ~MS_RDONLY;
@@ -340,6 +347,8 @@ int main(int argc, char *argv[])
 		printf("  -r root        root directory (ro -r, rw -R, overlay root:lower:work)\n");
 		printf("  -u pid         process uid (%d)\n", uid);
 		printf("  -g gid         process gid (%d)\n", gid);
+		printf("  -U a:b:c       user namespace UID mapping (a: namespace UID, b: UID, c: count)\n");
+		printf("  -G a:b:c       user namespace GID mapping (a: namespace GID, b: GID, c: count)\n");
 		printf("  -m src:dst     mount a file/directory, e.g. -m/mnt/foe:foe (ro -m, rw -M)\n");
 		printf("  -e E=V         set an environment variable\n");
 		printf("  -t[opts]       mount tmpfs on /tmp\n");
@@ -371,6 +380,10 @@ int main(int argc, char *argv[])
 	/* unshare namespace flags */
 	for (i = 0; cln_list[i]; i++)
 		cln_flags |= ns_flag[(unsigned char) cln_list[i]];
+	if (umap && !gmap)
+		die_nosys("got -U without -G");
+	if (umap && gmap)
+		cln_flags |= CLONE_NEWUSER;
 	/* enter other namespaces */
 	for (i = 0; i < enter_n; i++) {
 		if (ns_name[(unsigned char) enter[i][0]]) {
@@ -403,6 +416,27 @@ int main(int argc, char *argv[])
 	/* create new namespaces */
 	if (unshare(cln_flags) < 0)
 		die("unshare failed");
+	/* user namespace */
+	if (umap && gmap) {
+		for (i = 0; umap[i]; i++) {
+			if (umap[i] == ':')
+				umap[i] = ' ';
+			if (umap[i] == ',')
+				umap[i] = '\n';
+		}
+		for (i = 0; gmap[i]; i++) {
+			if (gmap[i] == ':')
+				gmap[i] = ' ';
+			if (gmap[i] == ',')
+				gmap[i] = '\n';
+		}
+		if (writefile("/proc/self", "uid_map", umap))
+			die("writing uid_map failed");
+		if (writefile("/proc/self", "setgroups", "deny"))
+			die("writing setgroups failed");
+		if (writefile("/proc/self", "gid_map", gmap))
+			die("writing gid_map failed");
+	}
 	/* make FS private */
 	if (mount("none", "/", NULL, MS_REC | MS_PRIVATE, NULL) < 0)
 		die("mount / failed");
@@ -509,9 +543,9 @@ int main(int argc, char *argv[])
 	if (cell_pid == 0) {
 		char *cell_path = NULL;
 		gid_t groups[] = {gid};
-		if (mount("none", "proc", "proc", 0, NULL) < 0)
+		if (mount("none", "proc", "proc", 0, "subset=pid") < 0)
 			die("mount proc failed");
-		if (setgroups(1, groups) < 0)
+		if (setgroups(1, groups) < 0 && !umap)
 			die("setgroups failed");
 		for (i = 0; i < 64; i++)
 			if (~cap & (1ul << i))
