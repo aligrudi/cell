@@ -348,11 +348,12 @@ int main(int argc, char *argv[])
 		printf("Usage: %s [options] init\n\n", argv[0]);
 		printf("Options:\n");
 		printf("  -r root        root directory (ro -r, rw -R, overlay root:lower:work)\n");
+		printf("  -m src:dst     mount a file/directory, e.g. -m/mnt/foe:foe (ro -m, rw -M)\n");
 		printf("  -u pid         process uid (%d)\n", uid);
 		printf("  -g gid         process gid (%d)\n", gid);
 		printf("  -U a:b:c       user namespace UID mapping (a: namespace UID, b: UID, c: count)\n");
 		printf("  -G a:b:c       user namespace GID mapping (a: namespace GID, b: GID, c: count)\n");
-		printf("  -m src:dst     mount a file/directory, e.g. -m/mnt/foe:foe (ro -m, rw -M)\n");
+		printf("  -i str         default init (can be used to specify a sandbox ID)\n");
 		printf("  -e E=V         set an environment variable\n");
 		printf("  -t[opts]       mount tmpfs on /tmp\n");
 		printf("  -sm[opts]      mount /sys\n");
