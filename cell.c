@@ -41,7 +41,6 @@
 #define NMNT		128
 #define NDEV		128
 #define NENV		128
-#define NETH		8
 
 #define LEN(a)		(sizeof(a) / sizeof((a)[0]))
 
@@ -55,6 +54,12 @@ static char *cenv[NENV] = {
 };
 
 int pivot_root(const char *new_root, const char *put_old);
+
+static void die_nosys(char *msg)
+{
+	fprintf(stderr, "cell: %s\n", msg);
+	exit(1);
+}
 
 static void die(char *fmt, ...)
 {
@@ -107,12 +112,13 @@ static int writefile(char *dir, char *ent, char *dat)
 {
 	char path[256];
 	int fd;
+	long res;
 	snprintf(path, sizeof(path), "%s/%s", dir, ent);
 	if ((fd = open(path, O_WRONLY)) < 0)
 		return 1;
-	write(fd, dat, strlen(dat));
+	res = write(fd, dat, strlen(dat));
 	close(fd);
-	return 0;
+	return res != strlen(dat);
 }
 
 static int cgroup_limit(char *dir, int pid, char **opts)
@@ -135,19 +141,18 @@ static int cgroup_limit(char *dir, int pid, char **opts)
 		}
 	}
 	snprintf(grp, sizeof(grp), "%s", dir);
-	writefile(dirname(grp), "cgroup.subtree_control", ctl);
-	snprintf(dat, sizeof(dat), "%d\n", pid);
+	if (writefile(dirname(grp), "cgroup.subtree_control", ctl))
+		return 1;
+	snprintf(dat, sizeof(dat), "%d", pid);
 	if (mkdir(dir, 0755) < 0 && errno != EEXIST)
 		return 1;
-	if (writefile(dir, "cgroup.procs", dat) != 0)
-		return 1;
-	if (writefile(dir, "cgroup.subtree_control", ctl) != 0)
+	if (writefile(dir, "cgroup.procs", dat))
 		return 1;
 	for (i = 0; opts[i] != NULL; i++) {
 		snprintf(key, sizeof(key), "%s", opts[i]);
-		if ((val = strchr(key, '=')) != NULL) {
+		if ((val = strchr(key, '='))) {
 			val[0] = '\0';
-			if (writefile(dir, key, val + 1) != 0)
+			if (writefile(dir, key, val + 1))
 				return 1;
 		}
 	}
@@ -168,9 +173,30 @@ static int env_set(char *envs[], int env_n, char *val)
 	return i + 1 >= env_n;
 }
 
+static int ns_flag[256] = {
+	['c'] = CLONE_NEWCGROUP,
+	['i'] = CLONE_NEWIPC,
+	['m'] = CLONE_NEWNS,
+	['n'] = CLONE_NEWNET,
+	['p'] = CLONE_NEWPID,
+	['t'] = CLONE_NEWTIME,
+	['U'] = CLONE_NEWUSER,
+	['u'] = CLONE_NEWUTS,
+};
+static char *ns_name[256] = {
+	['c'] = "cgroup",
+	['i'] = "ipc",
+	['m'] = "mnt",
+	['n'] = "net",
+	['p'] = "pid",
+	['t'] = "time",
+	['U'] = "user",
+	['u'] = "uts",
+};
+
 static int cell_pid;
 
-static void signalhandle(int n)
+static void sigredirect(int n)
 {
 	if (cell_pid > 0)
 		kill(cell_pid, n);
@@ -195,6 +221,7 @@ int main(int argc, char *argv[])
 	char *mktmp = NULL;
 	char *mkrun = NULL;
 	char *mkshm = NULL;
+	char *mkproc = "subset=pid";
 	char *mkdev = "size=64k,nr_inodes=64,mode=755";
 	char *mkdevfs = NULL;
 	char *mksys = NULL;
@@ -202,8 +229,12 @@ int main(int argc, char *argv[])
 	char *hostname = "localhost";
 	char *cwd = NULL;
 	int uid = 99, gid = 99;
+	char *umap = NULL, *gmap = NULL;
 	int child_st;
-	unsigned long cln_flags = CLONE_NEWPID | CLONE_NEWNS | CLONE_NEWUTS | CLONE_NEWIPC;
+	char *enter[16];
+	int enter_n = 0;
+	char *cln_list = "cimptu";
+	unsigned long cln_flags = 0;
 	unsigned long romnt_flags = MS_BIND | MS_RDONLY | MS_NOSUID | MS_NODEV | MS_NOATIME;
 	unsigned long rwmnt_flags = MS_BIND | MS_NOSUID | MS_NODEV | MS_NOATIME;
 	unsigned long cap = 0, caparg;
@@ -212,16 +243,19 @@ int main(int argc, char *argv[])
 	for (i = 1; i < argc && argv[i][0] == '-'; i++) {
 		switch (argv[i][1]) {
 		case 'n':
-			if (argv[i][2])
-				netns = argv[i] + 2;
-			else
-				cln_flags |= CLONE_NEWNET;
+			netns = argv[i] + 2;
 			break;
 		case 'u':
 			uid = atoi(argv[i][2] ? argv[i] + 2 : argv[++i]);
 			break;
 		case 'g':
 			gid = atoi(argv[i][2] ? argv[i] + 2 : argv[++i]);
+			break;
+		case 'U':
+			umap = argv[i][2] ? argv[i] + 2 : argv[++i];
+			break;
+		case 'G':
+			gmap = argv[i][2] ? argv[i] + 2 : argv[++i];
 			break;
 		case 'R':
 			base_flags &= ~MS_RDONLY;
@@ -235,14 +269,15 @@ int main(int argc, char *argv[])
 		case 'm':
 		case 'M':
 			if (mnt_n == NMNT)
-				die("cell: reached NMNT");
+				die_nosys("reached -m limit");
 			mnt_rw[mnt_n] = argv[i][0] == 'M';
 			csplit(mnt[mnt_n], 2, argv[i][2] ? argv[i] + 2 : argv[++i], ':');
 			mnt_n++;
 			break;
 		case 'l':
-			if (rlim_n < LEN(rlim))
-				rlim[rlim_n++] = argv[i][2] ? argv[i] + 2 : argv[++i];
+			if (rlim_n == LEN(rlim))
+				die_nosys("reached -l limit");
+			rlim[rlim_n++] = argv[i][2] ? argv[i] + 2 : argv[++i];
 			break;
 		case 'L':
 			csplit(cgrp, LEN(cgrp), argv[i][2] ? argv[i] + 2 : argv[++i], ',');
@@ -281,16 +316,26 @@ int main(int argc, char *argv[])
 				mkrun = argv[i][3] ? argv[i] + 3 : "size=256m,nr_inodes=4k,mode=777";
 			break;
 		case 's':
-			if (argv[i][2] == 'm')
-				mksys = argv[i] + 3;
 			if (argv[i][2] == 'g')
 				mkcgroup = argv[i] + 3;
+			if (argv[i][2] == 'p')
+				mkproc = argv[i] + 3;
+			if (argv[i][2] == 'm')
+				mksys = argv[i] + 3;
 			break;
 		case 'w':
 			cwd = argv[i][2] ? argv[i] + 2 : argv[++i];
 			break;
 		case 'H':
 			hostname = argv[i][2] ? argv[i] + 2 : argv[++i];
+			break;
+		case 'x':
+			cln_list = argv[i][2] ? argv[i] + 2 : argv[++i];
+			break;
+		case 'j':
+			if (enter_n == LEN(enter))
+				die_nosys("reached -j limit");
+			enter[enter_n++] = argv[i][2] ? argv[i] + 2 : argv[++i];
 			break;
 		default:
 			argc = 1;
@@ -303,13 +348,17 @@ int main(int argc, char *argv[])
 		printf("Usage: %s [options] init\n\n", argv[0]);
 		printf("Options:\n");
 		printf("  -r root        root directory (ro -r, rw -R, overlay root:lower:work)\n");
+		printf("  -m src:dst     mount a file/directory, e.g. -m/mnt/foe:foe (ro -m, rw -M)\n");
 		printf("  -u pid         process uid (%d)\n", uid);
 		printf("  -g gid         process gid (%d)\n", gid);
-		printf("  -m src:dst     mount a file/directory, e.g. -m/mnt/foe:foe (ro -m, rw -M)\n");
+		printf("  -U a:b:c       user namespace UID mapping (a: namespace UID, b: UID, c: count)\n");
+		printf("  -G a:b:c       user namespace GID mapping (a: namespace GID, b: GID, c: count)\n");
+		printf("  -i str         set the default init (can also be used to specify a sandbox ID)\n");
 		printf("  -e E=V         set an environment variable\n");
 		printf("  -t[opts]       mount tmpfs on /tmp\n");
 		printf("  -sm[opts]      mount /sys\n");
 		printf("  -sg[opts]      mount cgroup2 filesystem in /sys/fs/cgroup\n");
+		printf("  -sp[opts]      mount /proc (mounted by default, %s)\n", mkproc);
 		printf("  -dm[opts]      mount tmpfs on /dev (mounted by default)\n");
 		printf("  -dM[opts]      mount devtmpfs on /dev (unsafe)\n");
 		printf("  -ds[opts]      mount tmpfs on /dev/shm\n");
@@ -327,20 +376,71 @@ int main(int argc, char *argv[])
 		printf("  -c 0           drop all capabilites\n");
 		printf("  -n             create a new network namespace\n");
 		printf("  -nnetns        switch to the given named network namespace\n");
+		printf("  -x list        namespaces to create (default: cimptu)\n");
+		printf("  -j Xn          enter another process' namespace (X: NS type, n: process PID)\n");
+		printf("\n");
+		printf("Namespace types: c cgroup, i ipc, n net, m mnt, p pid, t time, U user, u uts\n");
 		return 0;
 	}
-	/* create a new namespace */
-	if (unshare(cln_flags) < 0)
-		die("unshare failed");
+	/* unshare namespace flags */
+	for (i = 0; cln_list[i]; i++)
+		cln_flags |= ns_flag[(unsigned char) cln_list[i]];
+	if (umap && !gmap)
+		die_nosys("got -U without -G");
+	if (umap && gmap)
+		cln_flags |= CLONE_NEWUSER;
+	/* enter other namespaces */
+	for (i = 0; i < enter_n; i++) {
+		if (ns_name[(unsigned char) enter[i][0]]) {
+			char path[256];
+			int nsfd;
+			snprintf(path, sizeof(path), "/proc/%s/ns/%s",
+				enter[i] + 1, ns_name[(unsigned char) enter[i][0]]);
+			nsfd = open(path, O_RDONLY);
+			if (nsfd < 0 || setns(nsfd, ns_flag[(unsigned char) enter[i][0]]) < 0)
+				die("-j%s failed", enter[i]);
+			close(nsfd);
+			cln_flags &= ~ns_flag[(unsigned char) enter[i][0]];
+		}
+	}
 	/* change the network namespace */
 	if (netns) {
 		char path[256];
 		int nsfd;
-		snprintf(path, sizeof(path), "/var/run/netns/%s", netns);
-		nsfd = open(path, O_RDONLY);
-		if (nsfd < 0 || setns(nsfd, CLONE_NEWNET) < 0)
-			die("changing netns failed");
-		close(nsfd);
+		if (netns[0]) {
+			snprintf(path, sizeof(path), "/var/run/netns/%s", netns);
+			nsfd = open(path, O_RDONLY);
+			if (nsfd < 0 || setns(nsfd, CLONE_NEWNET) < 0)
+				die("changing netns failed");
+			close(nsfd);
+			cln_flags &= ~CLONE_NEWNET;
+		} else {
+			cln_flags |= CLONE_NEWNET;
+		}
+	}
+	/* create new namespaces */
+	if (unshare(cln_flags) < 0)
+		die("unshare failed");
+	/* user namespace */
+	if (umap && gmap) {
+		for (i = 0; umap[i]; i++) {
+			if (umap[i] == ':')
+				umap[i] = ' ';
+			if (umap[i] == ',')
+				umap[i] = '\n';
+		}
+		for (i = 0; gmap[i]; i++) {
+			if (gmap[i] == ':')
+				gmap[i] = ' ';
+			if (gmap[i] == ',')
+				gmap[i] = '\n';
+		}
+		if (writefile("/proc/self", "uid_map", umap))
+			die("writing uid_map failed");
+		if (writefile("/proc/self", "setgroups", "deny"))
+			die("writing setgroups failed");
+		if (writefile("/proc/self", "gid_map", gmap))
+			die("writing gid_map failed");
 	}
 	/* make FS private */
 	if (mount("none", "/", NULL, MS_REC | MS_PRIVATE, NULL) < 0)
@@ -446,10 +546,11 @@ int main(int argc, char *argv[])
 	if ((cell_pid = fork()) < 0)
 		die("fork failed");
 	if (cell_pid == 0) {
+		char *cell_path = NULL;
 		gid_t groups[] = {gid};
-		if (mount("none", "proc", "proc", 0, NULL) < 0)
+		if (mount("none", "proc", "proc", 0, mkproc) < 0)
 			die("mount proc failed");
-		if (setgroups(1, groups) < 0)
+		if (setgroups(1, groups) < 0 && !umap)
 			die("setgroups failed");
 		for (i = 0; i < 64; i++)
 			if (~cap & (1ul << i))
@@ -475,12 +576,9 @@ int main(int argc, char *argv[])
 			die("setresuid failed");
 		if (cwd && chdir(cwd))
 			die("chdir failed");
-		char *cell_path = NULL;
 		for (i = 0; cenv[i]; i++) {
-			if (!strncmp(cenv[i], "PATH=", 5)) {
+			if (!strncmp(cenv[i], "PATH=", 5))
 				cell_path = cenv[i] + 5;
-				break;
-			}
 		}
 		if (cell_path)
 			setenv("PATH", cell_path, 1);
@@ -488,10 +586,10 @@ int main(int argc, char *argv[])
 		exit(1);
 	}
 	/* redirect signals to the child */
-	signal(SIGINT, signalhandle);
-	signal(SIGTERM, signalhandle);
-	signal(SIGPIPE, signalhandle);
-	signal(SIGHUP, signalhandle);
+	signal(SIGINT, sigredirect);
+	signal(SIGTERM, sigredirect);
+	signal(SIGPIPE, sigredirect);
+	signal(SIGHUP, sigredirect);
 	while (wait(&child_st) != cell_pid)
 		;
 	return WEXITSTATUS(child_st);
