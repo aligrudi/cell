@@ -33,7 +33,7 @@ arguments.
 -r /data/rootfs
   Mount's sandbox root in read-only mode.
 -R /data/rootfs
-  Mounts sandbox root is read-write mode.
+  Mounts sandbox root in read-write mode.
 -R /data/rootfs.updates:/data/rootfs:/data/rootfs.tmp
   Mounts an overlay filesystem for sandbox root.
 -m /data/bin:bin
